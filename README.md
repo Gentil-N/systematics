@@ -46,7 +46,9 @@ Unfortunatly, *git* is limited by size with 100MB and our pre-computed data (syn
 - The *git lfs migrate* command is not necessary when we commit new files.
 - Only *fits* files are tracked and stored as large files. That means to add new heavy file with a different extension, we must proceed *git lfs track ".\<extension\>"*.
 
-**Warning** : When we clone this repository, lfs files are referenced and not downloaded automaticaly. To force download we must execute *git lfs pull*.
+**Warning** : 
+- When we clone this repository, lfs files are referenced and not downloaded automaticaly. To force download we must execute *git lfs pull*.
+- To push new large files, it should be better to execute *git config --global lfs.activitytimeout 30* (see this [issue](https://github.com/git-lfs/git-lfs/issues/2636))
 
 ## NERSC
 
