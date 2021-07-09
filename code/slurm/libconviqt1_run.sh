@@ -3,6 +3,7 @@
 #SBATCH --constraint=haswell
 #SBATCH --qos=regular
 #SBATCH --time=01:00:00
+#SBATCH --output=./../../output/libconviqt1.out
 
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
