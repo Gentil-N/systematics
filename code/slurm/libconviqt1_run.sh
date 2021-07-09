@@ -11,4 +11,4 @@ export OPENBLAS_NUM_THREADS=1
 source $HOME/.bashrc
 setup
 
-srun -n 1 -c 64 $HOME/dependencies/bin/python3.7 ./../libconviqt1.py
+srun -n 1 -c 64 $HOME/dependencies/bin/python3.7 ./../libconviqt1.pyj
