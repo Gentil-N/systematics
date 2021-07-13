@@ -73,7 +73,7 @@ class args:
     nnz = 3
     outdir = "./output/"
     sky_file = "./data/maptotlm_freq0.fits"
-    beam_file = "./data/blm.fits"
+    beam_file = "./output/blm.fits"
 # Focalplane = dictionary : [detector (key)] -> [quaternion tuple (value)]
 focalplane = {list(hw.data['detectors'].items())[0][0]:list(hw.data['detectors'].items())[0][1]}
 # Get detector list
