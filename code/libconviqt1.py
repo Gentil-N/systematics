@@ -134,17 +134,17 @@ log.info("environment loaded")
 
 """COMPUTE"""
 
-#itération sur les 15 fréquences:
+# itération sur les 15 fréquences:
 for freq in range(1):
 
        log.info("computing for freq : %d" %freq)
 
        """PERTURBATION"""
 
-       m = hp.read_map("./data/sim_sources_map_freq%s.fits"%freq)
+       perturbation_map = hp.read_map("./data/sim_sources_map_freq%s.fits"%freq)
        log.info("perturbation map loaded")
 
-       hp.mollview(m, title = "Perturbation")
+       hp.mollview(perturbation_map, title = "Perturbation")
        plt.show()
 
        """SYNTHETIC BEAM"""
@@ -153,7 +153,7 @@ for freq in range(1):
        data.obs.append(obs) # 'append' is necessray (don't equal)
 
        nside = 64 
-       lmax = nside # Pour retrouver : carte = lmax = nside requis
+       lmax = ell # Pour retrouver : carte = lmax = nside requis
        nside_high = nside
        npix_high = 12 * nside_high ** 2
        lmax_high = nside_high * 2
@@ -166,11 +166,23 @@ for freq in range(1):
 
        # Change all values from the array of alm indexed by 'ell' and 'emm' previously found
        valchange1 = hp.Alm.getidx(lmax=lmax, l=ell, m=emm)
-       array_alm_coeff[valchange1] = 1e-3
+       array_alm_coeff[valchange1] = 1 + 1j
 
-       #r = hp.rotator.Rotator(rot =(0,90,0))
        map_beam = hp.alm2map(array_alm_coeff,nside = nside,lmax=lmax)
-       #map_beam = r.rotate_map_pixel(mapbeam)
+       print(map_beam)
+
+       #array_alm_coeff[valchange1] = 1
+       #map_beam_2 = hp.alm2map(array_alm_coeff,nside = nside,lmax=lmax)
+       #print(map_beam_2)
+
+       #array_alm_coeff[valchange1] = 1j
+       #map_beam_3 = hp.alm2map(array_alm_coeff,nside = nside,lmax=lmax)
+       #print(map_beam_3)
+       #map_beam_4 = map_beam_2 + map_beam_3
+       #print(map_beam_4)
+
+       #print(np.array_equal(map_beam, map_beam))
+       #print(np.array_equal(map_beam, map_beam_4))
 
        bl, blm = hp.anafast(np.array([map_beam,map_beam,map_beam]), lmax=lmax_high, iter=0, alm=True)
        hp.write_alm(args.beam_file, blm, overwrite=True)
@@ -195,8 +207,10 @@ for freq in range(1):
 
        # Show HitMap
        hp.mollview(hitmap, nest=True, cbar=False, title = "HitMap")
-       hp.graticule(22.5, verbose=False)
+       #hp.graticule(22.5, verbose=False) # 'verbose' give us a Warning
        plt.show()
+
+       log.info("hitmap created")
 
        name = "signal"
        toast.tod.OpCacheClear(name).exec(data) # clear 'name' entry to not overwrite
