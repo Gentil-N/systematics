@@ -1,12 +1,37 @@
+"""HELPERS"""
+
+class SampleTime:
+       seconds: int
+       minutes: int
+       hours: int
+       days: int
+       years: int
+       def __init__(self, seconds: int = 0, minutes: int = 0, hours: int = 0, days: int = 0, years: int = 0) :
+              self.seconds = seconds
+              self.minutes = minutes
+              self.hours = hours
+              self.days = days
+              self.years = years
+
+def get_total_sample_time_seconds(sample_time: SampleTime) :
+       seconds_per_minutes = 60
+       seconds_per_hours = 60 * seconds_per_minutes
+       seconds_per_day = 24 * seconds_per_hours
+       seconds_per_year = 365 * seconds_per_day
+       return sample_time.years * seconds_per_year + \
+              sample_time.days * seconds_per_day + \
+              sample_time.hours * seconds_per_hours + \
+              sample_time.minutes * seconds_per_minutes + \
+              sample_time.seconds
+
 """INPUTS"""
 
 ell = 1
 emm = 1
+sample_time = SampleTime(0, 0, 1, 0, 0)
 
 """IMPORTS"""
 
-# Capture C++ output in the jupyter cells
-#%reload_ext wurlitzer
 import logging as log
 log.basicConfig(level=log.INFO)
 import toast
@@ -24,40 +49,43 @@ log.info("python import succesfull")
 
 """ENVIRONMENT"""
 
+# MPI Loads
 mpiworld, procs, rank = toast.mpi.get_world()
 comm = toast.mpi.Comm(mpiworld)
-# Appel de l'imo pour avoir les infos sur les detecteurs et la scanning strategy: 
+# Get scanning strategy
 imo = Imo(flatfile_location="./data")
 scanning_strategy = lbs.SpinningScanningStrategy.from_imo(imo, "5e3bf49f-53f3-4f80-a65c-6191a4820b86")
-#appel d'un fichier qui contient les detecteurs: (je n'en ai pris qu'une, idéalement il faudrait toutes les prendre)
+# Get detectors
 hw = Hardware("./data/hardware_config_files/20Hardware.toml.gz")
-log.info("detector loaded")
+log.info("raw file data loaded")
 
 class args:
-    sample_rate = 19  # Hz
+    sample_rate = 19 # Frame rate (per second)
     hwp_rpm = None
     hwp_step_deg = None
     hwp_step_time_s = None
-    spin_period_min = 60*scanning_strategy.spin_rate_hz # 10
+    spin_period_min = 60*scanning_strategy.spin_rate_hz
     spin_angle_deg = 50
-    prec_period_min = 60*scanning_strategy.precession_rate_hz # 50
+    prec_period_min = 60*scanning_strategy.precession_rate_hz
     prec_angle_deg = 45 
     coord = "E"
-    nside = 256
+    nside = 64
     nnz = 3
-    outdir = "./output"
-    sky_file = outdir + "maptotlm.fits"
-    beam_file = outdir + "blm.fits"
-#On crée une focaleplane avec les quaternions des detectors
+    outdir = "./output/"
+    sky_file = "./data/maptotlm_freq0.fits"
+    beam_file = "./data/blm.fits"
+# Focalplane = dictionary : [detector (key)] -> [quaternion tuple (value)]
 focalplane = {list(hw.data['detectors'].items())[0][0]:list(hw.data['detectors'].items())[0][1]}
-#focalplane = fake_focalplane(samplerate=args.sample_rate, fknee=0.1, alpha=2)
+# Get detector list
 detectors = sorted(focalplane.keys())
+# Get quaterion tuple list
 detquats = {}
 for d in detectors:
     detquats[d] = focalplane[d]["quat"]
-#On convolue sur un an:
-nsample = int(1*365.25*24*60*60*args.sample_rate)
-log.info("focalplane created")
+
+# One second of convolution
+nsample = int(get_total_sample_time_seconds(sample_time) * args.sample_rate)
+log.info("detector's infos created")
 
 start_sample = 0
 start_time = 0
@@ -67,7 +95,6 @@ tod = toast.todmap.TODSatellite(
         comm.comm_group,
         detquats,
         nsample,
-        coord=args.coord,
         firstsamp=start_sample,
         firsttime=start_time,
         rate=args.sample_rate,
@@ -75,30 +102,32 @@ tod = toast.todmap.TODSatellite(
         spinangle=args.spin_angle_deg,
         precperiod=args.prec_period_min,
         precangle=args.prec_angle_deg,
-        detranks=comm.group_size,
+        coord=args.coord,
+        #detranks=comm.group_size,
         hwprpm=args.hwp_rpm,
         hwpstep=args.hwp_step_deg,
         hwpsteptime=args.hwp_step_time_s,
     )
 
-# Constantly slewing precession axis                                                                                                                                             
+# Create empty array with all data
 precquat = np.empty(4 * tod.local_samples[1], dtype=np.float64).reshape((-1, 4))
+# Constantly slewing precession axis
 toast.todmap.slew_precession_axis(
-        precquat,
-        firstsamp=start_sample + tod.local_samples[0],
-        samplerate=args.sample_rate,
-        degday=360.0 / 365.25,)
+        precquat, # Result
+        firstsamp=start_sample + tod.local_samples[0], # Begining sample
+        samplerate=args.sample_rate, # Frame rate (per second)
+        degday=360.0 / 365.25 # Rotation rate (deg per day)
+        )
 tod.set_prec_axis(qprec=precquat)
-#noise = toast.pipeline_tools.get_analytic_noise(args, comm, focalplane)
+
 obs = {}
 obs["name"] = "science_{:05d}".format(iobs)
 obs["tod"] = tod
 obs["intervals"] = None
 obs["baselines"] = None
-#obs["noise"] = noise
 obs["id"] = iobs
-# Conviqt requires at least minimal focal plane information to be present in the observation
-obs["focalplane"] = toast.pipeline_tools.Focalplane(focalplane)
+# Create Focalplane from a dictionary
+obs["focalplane"] = toast.pipeline_tools.Focalplane(detector_data=focalplane)
 log.info("observation's data created")
 
 log.info("environment loaded")
@@ -106,95 +135,81 @@ log.info("environment loaded")
 """COMPUTE"""
 
 #itération sur les 15 fréquences:
-for freq in range(15):
+for freq in range(1):
 
        log.info("computing for freq : %d" %freq)
 
        """PERTURBATION"""
 
-       #J'appelle la carte qu'on va convoluer avec de la poussière et du synchrotron dedans
-       data = toast.Data(comm)
-       data.obs.append(obs)
-       nside_high = 256
-       npix_high = 12 * nside_high ** 2
-       lmax_high = nside_high * 2
-       m = hp.read_map(args.outdir+"sim_sources_map_freq%s.fits"%freq)
-       # hp.mollview(m)
-       # plt.show()
-
+       m = hp.read_map("./data/sim_sources_map_freq%s.fits"%freq)
        log.info("perturbation map loaded")
+
+       hp.mollview(m, title = "Perturbation")
+       plt.show()
 
        """SYNTHETIC BEAM"""
 
-       #Je crée les beams perturbés:
+       data = toast.Data(comm)
+       data.obs.append(obs) # 'append' is necessray (don't equal)
 
-       nside = 256 
-       lmax = nside #Pour retrouver carte = lmax = nside requis 
+       nside = 64 
+       lmax = nside # Pour retrouver : carte = lmax = nside requis
+       nside_high = nside
+       npix_high = 12 * nside_high ** 2
+       lmax_high = nside_high * 2
 
-       npix = hp.nside2npix(nside)
-       ipix = np.arange(npix)
+       num_pix = hp.nside2npix(nside)
+       ipix = np.arange(num_pix)
 
-       map0 = np.zeros(npix)
-       almtest = hp.map2alm(map0,lmax=lmax)
+       raw_map_data = np.zeros(num_pix)
+       array_alm_coeff = hp.map2alm(raw_map_data,lmax=lmax)
 
-       #L,M = hp.Alm.getlm(lmax=lmax)
-       # ell = np.arange(lmax+1)
-       # L = []
-       # M = []
-       # for i in range(len(ell)):
-       #     M.append(list(np.arange(ell[i]+1)))
-       #     L.append(ell[i]*np.ones(len(np.arange(ell[i]+1))))
-       # L = np.array([item for sublist in L for item in sublist]).astype(int)
-       # M = np.array([item for sublist in M for item in sublist])
-       # lenlmax= len(almtest)
-       #numb = hp.Alm.getidx(lmax=lmax, l=L, m=M)
-
-       almtest2 = 0*almtest 
+       # Change all values from the array of alm indexed by 'ell' and 'emm' previously found
        valchange1 = hp.Alm.getidx(lmax=lmax, l=ell, m=emm)
-       almtest2[valchange1] = 1e-3
+       array_alm_coeff[valchange1] = 1e-3
 
-       r = hp.rotator.Rotator(rot =(0,90,0))
-       mapbeam = hp.alm2map(almtest2,nside = nside,lmax=lmax)
-       mapbeam = r.rotate_map_pixel(mapbeam)
+       #r = hp.rotator.Rotator(rot =(0,90,0))
+       map_beam = hp.alm2map(array_alm_coeff,nside = nside,lmax=lmax)
+       #map_beam = r.rotate_map_pixel(mapbeam)
 
-       #décomente ça si tu veux voir le beam
-       # hp.mollview(mapbeam,norm='hist')
-       # plt.show()
-
-       bl, blm = hp.anafast(np.array([mapbeam,mapbeam,mapbeam]), lmax=lmax_high, iter=0, alm=True)
+       bl, blm = hp.anafast(np.array([map_beam,map_beam,map_beam]), lmax=lmax_high, iter=0, alm=True)
        hp.write_alm(args.beam_file, blm, overwrite=True)
 
        log.info("synthetic beam created")
 
-       """CONVOLUTION"""
+       hp.mollview(map_beam,norm='hist', title = "Synthetic beam")
+       plt.show()
 
-       #J'appel conviqt exactement comme dans toast/tutorial/04_Simulated_Instrument_Signal/")"
+       """CONVOLUTION"""
 
        toast.todmap.OpPointingHpix(nside=args.nside, nest=True, mode="IQU").exec(data)
 
-       npix = 12 * args.nside ** 2
-       hitmap = np.zeros(npix)
+       # Get HitMap (where the satellite sees during sample)
+       num_pix = 12 * args.nside ** 2
+       hitmap = np.zeros(num_pix)
        tod = data.obs[0]["tod"]
        for det in tod.local_dets:
            pixels = tod.cache.reference("pixels_{}".format(det))
            hitmap[pixels] = 1
        hitmap[hitmap == 0] = hp.UNSEEN
-       #hp.mollview(hitmap, nest=True, title="all hit pixels", cbar=False)
-       #plt.show()
+
+       # Show HitMap
+       hp.mollview(hitmap, nest=True, cbar=False, title = "HitMap")
        hp.graticule(22.5, verbose=False)
+       plt.show()
 
        name = "signal"
-       toast.tod.OpCacheClear(name).exec(data)
+       toast.tod.OpCacheClear(name).exec(data) # clear 'name' entry to not overwrite
        conviqt = toast.todmap.OpSimConviqt(
            comm.comm_rank,
            args.sky_file,
            args.beam_file,
-           lmax=2*nside_high,  # Will use maximum from file
-           beammmax=2*nside_high,  # Will use maximum from file
+           lmax=2*nside_high,  # will use maximum from file
+           beammmax=2*nside_high,  # will use maximum from file
            pol=True,
-           fwhm=0,
+           fwhm=0, # width of a symmetric gaussian beam in arcmin
            order=13,
-           calibrate=True,
+           calibrate=True, # normalize beam ?
            dxx=False,
            out=name,
            quat_name=None,
@@ -214,42 +229,41 @@ for freq in range(15):
 
        """WRITE DATA"""
 
+       # From Tutorial (toast/tutorial/04_Simulated_Instrument_Signal/) :
+       # "Destripe the signal and make a map. We use the nascent TOAST mapmaker because it can be run in serial mode without MPI. 
+       # The TOAST mapmaker is still significantly slower so production runs should used libMadam.""
        mapmaker = toast.todmap.OpMapMaker(
            nside=args.nside,
            nnz=3,
-           #name=name,
            outdir=args.outdir,
            outprefix="toast_test_freq%s_ell%s_emm%s_"%(freq,ell,emm),
            baseline_length=10,
-           # maskfile=self.maskfile_binary,
-           # weightmapfile=self.maskfile_smooth,
-           # subharmonic_order=None,
            iter_max=100,
            use_noise_prior=False,
-           # precond_width=30,
        )
        mapmaker.exec(data)
 
-       log.info("map written")
+       log.info("maps written")
 
-       plt.figure(figsize=[12, 8])
+       """PLOT FIGURES"""
 
-       hitmap = hp.read_map(args.outdir+"/toast_test_freq%s_ell%s_emm%s_hits.fits"%(freq,ell,emm))
-       hitmap[hitmap == 0] = hp.UNSEEN
-       #hp.mollview(hitmap, sub=[2, 2, 1], title="hits")
+       plt.figure(num = "Results")
+       hits = hp.read_map(args.outdir+"/toast_test_freq%s_ell%s_emm%s_hits.fits"%(freq,ell,emm))
+       #hits[hits == 0] = hp.pixelfunc.UNSEEN
+       hp.mollview(hits, sub=[2, 2, 1], title="hits")
 
        binmap = hp.read_map(args.outdir+"/toast_test_freq%s_ell%s_emm%s_binned.fits"%(freq,ell,emm))
-       binmap[binmap == 0] = hp.UNSEEN
-       #hp.mollview(binmap, sub=[2, 2, 2], title="binned map", cmap="coolwarm")
+       #binmap[binmap == 0] = hp.pixelfunc.UNSEEN
+       hp.mollview(binmap, sub=[2, 2, 2], title="binned map", cmap="coolwarm")
 
        destriped = hp.read_map(args.outdir+"/toast_test_freq%s_ell%s_emm%s_destriped.fits"%(freq,ell,emm))
-       destriped[destriped == 0] = hp.UNSEEN
-       #hp.mollview(destriped, sub=[2, 2, 3], title="destriped map", cmap="coolwarm")
-       inmap = hp.ud_grade(hp.read_map(args.outdir+"sim_sources_map.fits"), args.nside)
+       #destriped[destriped == 0] = hp.pixelfunc.UNSEEN
+       hp.mollview(destriped, sub=[2, 2, 3], title="destriped map", cmap="coolwarm")
+       inmap = hp.ud_grade(hp.read_map("./data/sim_sources_map_freq%s.fits"%freq), args.nside)
 
-       inmap[hitmap == hp.UNSEEN] = hp.UNSEEN
-       #hp.mollview(inmap, sub=[2, 2, 4], title="input map", cmap="coolwarm")
+       #inmap[hitmap == hp.pixelfunc.UNSEEN] = hp.pixelfunc.UNSEEN
+       hp.mollview(inmap, sub=[2, 2, 4], title="input map", cmap="coolwarm")
        plt.savefig(args.outdir+"conviqt_freq%s_ell%s_emm%s.pdf"%(freq,ell,emm))
-       #plt.show()
+       plt.show()
 
 log.info("compute finished")
