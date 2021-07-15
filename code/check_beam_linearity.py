@@ -79,7 +79,7 @@ def check_linearity_for_ell(ell: int):
               for i in range(check_count):
                      hp.mollview(map_list[i][2], sub=[row, col, i * 4 + 1], title="Emm : %s"%map_list[i][0])
                      hp.mollview(map_list[i][3], sub=[row, col, i * 4 + 2], title="Emm : %s"%map_list[i][1])
-                     hp.mollview(map_list[i][4], sub=[row, col, i * 4 + 3], title="Right")
+                     hp.mollview(map_list[i][4], sub=[row, col, i * 4 + 3], title="Good")
                      hp.mollview(map_list[i][5], sub=[row, col, i * 4 + 4], title="Check")
               plt.show()
 
