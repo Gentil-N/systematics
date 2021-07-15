@@ -1,3 +1,4 @@
 /venv
+/code/__pycache__
 !/output/OUTPUT.md
 /output/*
