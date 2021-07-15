@@ -10,10 +10,10 @@ import cmath
 """INPUTS"""
 
 NSIDE = 64
-ELL_MAX = 3
-EDGE = 10e-5
+ELL_MAX = 10
+EDGE = 10e-16
 ENABLE_PRINT = True
-ENABLE_PLOT = True
+ENABLE_PLOT = False
 
 """CONSTANTS"""
 
