@@ -27,7 +27,7 @@ NSIDE = 64
 NSIDE_HIGH = NSIDE
 LMAX_HIGH = NSIDE_HIGH * 2
 ELL_MAX = 10
-SAMPLE_TIME = SampleTime(0, 0, 1, 0, 0)
+SAMPLE_TIME = SampleTime(0, 0, 1, 0, 0) # One hour of convolution
 EDGE = 10e-16
 OUTDIR = "./output/"
 
@@ -153,7 +153,6 @@ detquats = {}
 for d in detectors:
     detquats[d] = focalplane[d]["quat"]
 
-# One second of convolution
 nsample = int(SAMPLE_TIME.get_total_seconds() * args.sample_rate)
 log.info("detector's infos created")
 

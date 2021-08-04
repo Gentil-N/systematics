@@ -61,7 +61,6 @@ detquats = {}
 for d in detectors:
     detquats[d] = focalplane[d]["quat"]
 
-# One second of convolution
 nsample = int(sample_time.get_total_seconds() * args.sample_rate)
 log.info("detector's infos created")
 
