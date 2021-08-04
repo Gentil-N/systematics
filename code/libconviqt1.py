@@ -147,20 +147,6 @@ for freq in range(1):
        array_alm_coeff[valchange1] = 1 + 1j
 
        map_beam = hp.alm2map(array_alm_coeff,nside = nside,lmax=lmax)
-       print(map_beam)
-
-       #array_alm_coeff[valchange1] = 1
-       #map_beam_2 = hp.alm2map(array_alm_coeff,nside = nside,lmax=lmax)
-       #print(map_beam_2)
-
-       #array_alm_coeff[valchange1] = 1j
-       #map_beam_3 = hp.alm2map(array_alm_coeff,nside = nside,lmax=lmax)
-       #print(map_beam_3)
-       #map_beam_4 = map_beam_2 + map_beam_3
-       #print(map_beam_4)
-
-       #print(np.array_equal(map_beam, map_beam))
-       #print(np.array_equal(map_beam, map_beam_4))
 
        bl, blm = hp.anafast(np.array([map_beam,map_beam,map_beam]), lmax=lmax_high, iter=0, alm=True)
        hp.write_alm(args.beam_file, blm, overwrite=True)
